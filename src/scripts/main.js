@@ -142,64 +142,19 @@ async function loadSelectedFiles() {
     const urls = getSpineUrls(selectedAnimation);
 
     // Function to read file as data URL
-    const readFileAsDataURL = (url, timeout = 30000) => {
+    const readFileAsDataURL = (url) => {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            xhr.responseType = 'blob';
-
-            // タイムアウトの設定
-            xhr.timeout = timeout;
-
+            xhr.responseType = 'blob';  // まずBlobとして読み込む
             xhr.onload = () => {
-                // ステータスコードのチェック
-                if (xhr.status !== 200) {
-                    reject(new Error(`HTTP error! status: ${xhr.status}`));
-                    return;
-                }
-
                 const reader = new FileReader();
-
-                reader.onload = (e) => {
-                    if (!e.target || !e.target.result) {
-                        reject(new Error('Failed to convert blob to data URL'));
-                        return;
-                    }
-                    resolve(e.target.result);
-                };
-
-                reader.onerror = (error) => {
-                    reject(new Error('FileReader error: ' + error.message));
-                };
-
-                reader.onabort = () => {
-                    reject(new Error('File reading was aborted'));
-                };
-
-                reader.readAsDataURL(xhr.response);
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (error) => reject(error);
+                reader.readAsDataURL(xhr.response);  // BlobをデータURLに変換
             };
-
-            xhr.onerror = () => {
-                reject(new Error('Network error occurred'));
-            };
-
-            xhr.ontimeout = () => {
-                reject(new Error('Request timeout'));
-            };
-
-            xhr.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    const percentComplete = (event.loaded / event.total) * 100;
-                    console.log(`Loading progress: ${percentComplete.toFixed(2)}%`);
-                }
-            };
-
+            xhr.onerror = () => reject(new Error('Failed to load file: ' + url));
             xhr.open('GET', url, true);
-
-            try {
-                xhr.send();
-            } catch (error) {
-                reject(new Error('Failed to send request: ' + error.message));
-            }
+            xhr.send();
         });
     };
 
