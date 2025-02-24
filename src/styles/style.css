@@ -278,7 +278,6 @@ footer .site-name {
 #animationSelect {
     display: block;
     margin: 0 auto;
-    /* 水平方向の中央揃え */
     width: 100%;
     max-width: 400px;
 }
@@ -287,12 +286,10 @@ footer .site-name {
 #main button {
     display: block;
     margin: 1rem auto;
-    /* 水平方向の中央揃え + 上下マージン */
     width: 100%;
     max-width: 400px;
 }
 
-/* セレクトメニューのスタイル */
 select {
     padding: 8px 12px;
     border-radius: 4px;
@@ -305,12 +302,10 @@ select {
     outline: none;
 }
 
-/* セレクトメニューのホバー時のスタイル */
 select:hover {
     border-color: #888;
 }
 
-/* セレクトメニューのフォーカス時のスタイル */
 select:focus {
     border-color: #007bff;
     box-shadow: 0 0 0 2px rgba(0, 123, 255, .25);
