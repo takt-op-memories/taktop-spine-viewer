@@ -123,6 +123,19 @@ let player; // Instance of SpinePlayer
 
 // Load selected animation file
 async function loadSelectedFiles() {
+
+    const password = sessionStorage.getItem(STORAGE_KEY.PASSWORD);
+    if (!password) {
+        Auth.clearAndReload();
+        return;
+    }
+
+    const isValid = await Auth.verify(password);
+    if (!isValid) {
+        Auth.clearAndReload();
+        return;
+    }
+
     const selectedAnimation = document.getElementById('animationSelect').value;
     if (!selectedAnimation) {
         alert('Select the animation you wish to view');
@@ -255,29 +268,57 @@ function requestFullScreen() {
     }
 }
 
-async function authenticate(event) {
-    event.preventDefault();
-    const password = document.getElementById('password').value;
+const STORAGE_KEY = {
+    PASSWORD: 'auth_password'
+};
 
-    try {
-        const response = await fetch(`${CONFIG.API_BASE}/verify`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({ password })
-        });
-
-        if (response.ok) {
-            document.getElementById('auth-container').style.display = 'none';
-            document.getElementById('auth-error').style.display = 'none';
-            document.getElementById('main').style.display = 'block';
-            loadHeight();
-        } else {
-            document.getElementById('auth-error').style.display = 'block';
+const Auth = {
+    async verify(password) {
+        try {
+            const response = await fetch(`${CONFIG.API_BASE}/verify`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ password })
+            });
+            return response.ok;
+        } catch (error) {
+            console.error('Authentication error:', error);
+            return false;
         }
-    } catch (error) {
-        console.error('authentication error:', error);
+    },
+
+    handleAuthSuccess() {
+        document.getElementById('auth-container').style.display = 'none';
+        document.getElementById('auth-error').style.display = 'none';
+        document.getElementById('main').style.display = 'block';
+        loadHeight();
+    },
+
+    clearAndReload() {
+        sessionStorage.removeItem(STORAGE_KEY.PASSWORD);
+        window.location.reload();
+    }
+};
+
+async function authenticate(event) {
+    if (event) event.preventDefault();
+
+    const password = event ?
+        document.getElementById('password').value :
+        sessionStorage.getItem(STORAGE_KEY.PASSWORD);
+
+    if (!password) return;
+
+    const isValid = await Auth.verify(password);
+
+    if (isValid) {
+        sessionStorage.setItem(STORAGE_KEY.PASSWORD, password);
+        Auth.handleAuthSuccess();
+    } else {
+        document.getElementById('auth-error').style.display = 'block';
+        Auth.clearAndReload();
     }
 }
