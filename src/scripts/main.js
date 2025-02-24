@@ -52,7 +52,7 @@ window.addEventListener('load', async () => {
 
     const savedPassword = sessionStorage.getItem(STORAGE_KEY.PASSWORD);
     if (savedPassword) {
-        await authenticate(); // イベントなしで呼び出し
+        await authenticate();
     }
 
     requestAnimationFrame(() => {
@@ -159,12 +159,12 @@ async function loadSelectedFiles() {
     const readFileAsDataURL = (url) => {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            xhr.responseType = 'blob';  // まずBlobとして読み込む
+            xhr.responseType = 'blob';
             xhr.onload = () => {
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target.result);
                 reader.onerror = (error) => reject(error);
-                reader.readAsDataURL(xhr.response);  // BlobをデータURLに変換
+                reader.readAsDataURL(xhr.response);
             };
             xhr.onerror = () => reject(new Error('Failed to load file: ' + url));
             xhr.open('GET', url, true);
@@ -338,13 +338,13 @@ class AuthStatusChecker {
         try {
             const response = await fetch(this.statusEndpoint);
             if (!response.ok) {
-                throw new Error('ステータス取得エラー');
+                throw new Error('Status acquisition error');
             }
 
             const data = await response.json();
             this.updateStatusDisplay(data);
         } catch (error) {
-            console.error('ステータス確認エラー:', error);
+            console.error('status check error:', error);
             this.showError();
         }
     }
@@ -357,7 +357,7 @@ class AuthStatusChecker {
         if (timeUntilChange <= 0) {
             this.statusElement.innerHTML = `
                 <div class="status-info">
-                    <p>パスワード更新中...</p>
+                    <p>Now Updating Password...</p>
                 </div>
             `;
             return;
@@ -368,8 +368,8 @@ class AuthStatusChecker {
 
         this.statusElement.innerHTML = `
             <div class="status-info">
-                <p>次回パスワード更新まで：</p>
-                <p class="time-remaining">${hoursRemaining}時間${minutesRemaining}分</p>
+                <p>Until next password update：</p>
+                <p class="time-remaining">${hoursRemaining}h${minutesRemaining}m</p>
             </div>
         `;
     }
@@ -377,7 +377,7 @@ class AuthStatusChecker {
     showError() {
         this.statusElement.innerHTML = `
             <div class="status-error">
-                <p>更新時刻の取得に失敗しました</p>
+                <p>Failed to retrieve update time</p>
             </div>
         `;
     }

@@ -148,9 +148,7 @@ button:active {
 
 fieldset {
     margin: 0 auto 1rem;
-    /* 水平方向の中央揃え + 下部マージンのみ */
     padding: 0.5rem;
-    /* パディングを縮小 */
     width: 100%;
     max-width: 400px;
 }
