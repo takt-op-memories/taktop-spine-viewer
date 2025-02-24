@@ -322,3 +322,26 @@ select:focus {
     border-color: #007bff;
     box-shadow: 0 0 0 2px rgba(0, 123, 255, .25);
 }
+
+.status-info {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px 0;
+    text-align: center;
+}
+
+.time-remaining {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #efb233;
+}
+
+.status-error {
+    background: rgba(255, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px 0;
+    text-align: center;
+    color: #ff6b6b;
+}

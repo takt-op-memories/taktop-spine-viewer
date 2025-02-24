@@ -322,3 +322,63 @@ async function authenticate(event) {
         Auth.clearAndReload();
     }
 }
+
+class AuthStatusChecker {
+    constructor() {
+        this.statusEndpoint = 'https://takt-op-memories.up.railway.app/api/v1/secure/status';
+        this.statusElement = document.getElementById('password-status');
+    }
+
+    async checkStatus() {
+        try {
+            const response = await fetch(this.statusEndpoint);
+            if (!response.ok) {
+                throw new Error('ステータス取得エラー');
+            }
+
+            const data = await response.json();
+            this.updateStatusDisplay(data);
+        } catch (error) {
+            console.error('ステータス確認エラー:', error);
+            this.showError();
+        }
+    }
+
+    updateStatusDisplay(data) {
+        const now = new Date();
+        const nextChange = new Date(data.nextChange);
+        const timeUntilChange = nextChange - now;
+
+        if (timeUntilChange <= 0) {
+            this.statusElement.innerHTML = `
+                <div class="status-info">
+                    <p>パスワード更新中...</p>
+                </div>
+            `;
+            return;
+        }
+
+        const hoursRemaining = Math.floor(timeUntilChange / (1000 * 60 * 60));
+        const minutesRemaining = Math.floor((timeUntilChange % (1000 * 60 * 60)) / (1000 * 60));
+
+        this.statusElement.innerHTML = `
+            <div class="status-info">
+                <p>次回パスワード更新まで：</p>
+                <p class="time-remaining">${hoursRemaining}時間${minutesRemaining}分</p>
+            </div>
+        `;
+    }
+
+    showError() {
+        this.statusElement.innerHTML = `
+            <div class="status-error">
+                <p>更新時刻の取得に失敗しました</p>
+            </div>
+        `;
+    }
+}
+
+const statusChecker = new AuthStatusChecker();
+statusChecker.checkStatus();
+// 1分ごとに更新
+setInterval(() => statusChecker.checkStatus(), 60000);
