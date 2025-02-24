@@ -7,12 +7,6 @@ const CONFIG = {
     }
 };
 
-const getSpineUrls = (fileName) => ({
-    skel: `${CONFIG.DB_BASE}/skel/${fileName}.skel`,
-    atlas: `${CONFIG.DB_BASE}/atlas/${fileName}.atlas`,
-    png: `${CONFIG.DB_BASE}/png/${fileName}.png`
-});
-
 const loadHeight = () => {
     const headerHeight = document.getElementsByTagName('header')[0].clientHeight;
     const authContainer = document.querySelector('#auth-container');
@@ -139,7 +133,9 @@ async function loadSelectedFiles() {
     destroyPlayer();
 
     // Set file path
-    const urls = getSpineUrls(selectedAnimation);
+    const skelFile = `/taktop-spine-db/skel/${selectedAnimation}.skel`;
+    const atlasFile = `/taktop-spine-db/atlas/${selectedAnimation}.atlas`;
+    const pngFile = `/taktop-spine-db/png/${selectedAnimation}.png`;
 
     // Function to read file as data URL
     const readFileAsDataURL = (url) => {
@@ -161,18 +157,18 @@ async function loadSelectedFiles() {
     try {
         // Read all files as data URLs
         const [skelData, atlasData, pngData] = await Promise.all([
-            readFileAsDataURL(urls.skel),
-            readFileAsDataURL(urls.atlas),
-            readFileAsDataURL(urls.png)
+            readFileAsDataURL(skelFile),
+            readFileAsDataURL(atlasFile),
+            readFileAsDataURL(pngFile)
         ]);
 
         const config = {
-            skelUrl: urls.skel,
-            atlasUrl: urls.atlas,
+            skelUrl: skelFile,
+            atlasUrl: atlasFile,
             rawDataURIs: {
-                [urls.skel]: skelData,
-                [urls.atlas]: atlasData,
-                [urls.png]: pngData
+                [skelFile]: skelData,
+                [atlasFile]: atlasData,
+                [pngFile]: pngData
             },
             alpha: true,
             backgroundColor: "transparent",
