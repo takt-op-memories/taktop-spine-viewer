@@ -3,7 +3,7 @@ const CONFIG = {
     DB_BASE: 'https://takt-op-memories.github.io/taktop-spine-db',
     ASSETS: {
         SPINE_LIST: '/spine.json',
-        BACKGROUND: '/src/images/background.png'
+        BACKGROUND: './src/images/background.png'
     }
 };
 
@@ -142,17 +142,64 @@ async function loadSelectedFiles() {
     const urls = getSpineUrls(selectedAnimation);
 
     // Function to read file as data URL
-    const readFileAsDataURL = async (url) => {
-        const response = await fetch(url, {
-            mode: 'cors',
-            credentials: 'omit'
-        });
-        const blob = await response.blob();
+    const readFileAsDataURL = (url, timeout = 30000) => {
         return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
+            const xhr = new XMLHttpRequest();
+            xhr.responseType = 'blob';
+
+            // タイムアウトの設定
+            xhr.timeout = timeout;
+
+            xhr.onload = () => {
+                // ステータスコードのチェック
+                if (xhr.status !== 200) {
+                    reject(new Error(`HTTP error! status: ${xhr.status}`));
+                    return;
+                }
+
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    if (!e.target || !e.target.result) {
+                        reject(new Error('Failed to convert blob to data URL'));
+                        return;
+                    }
+                    resolve(e.target.result);
+                };
+
+                reader.onerror = (error) => {
+                    reject(new Error('FileReader error: ' + error.message));
+                };
+
+                reader.onabort = () => {
+                    reject(new Error('File reading was aborted'));
+                };
+
+                reader.readAsDataURL(xhr.response);
+            };
+
+            xhr.onerror = () => {
+                reject(new Error('Network error occurred'));
+            };
+
+            xhr.ontimeout = () => {
+                reject(new Error('Request timeout'));
+            };
+
+            xhr.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = (event.loaded / event.total) * 100;
+                    console.log(`Loading progress: ${percentComplete.toFixed(2)}%`);
+                }
+            };
+
+            xhr.open('GET', url, true);
+
+            try {
+                xhr.send();
+            } catch (error) {
+                reject(new Error('Failed to send request: ' + error.message));
+            }
         });
     };
 
