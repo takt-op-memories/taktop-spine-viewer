@@ -47,8 +47,13 @@ const loadHeight = () => {
     }
 }
 
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
     loadAnimationList();
+
+    const savedPassword = sessionStorage.getItem(STORAGE_KEY.PASSWORD);
+    if (savedPassword) {
+        await authenticate(); // イベントなしで呼び出し
+    }
 
     requestAnimationFrame(() => {
         loadHeight();
