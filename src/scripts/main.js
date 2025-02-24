@@ -3,7 +3,7 @@ const CONFIG = {
     DB_BASE: 'https://takt-op-memories.github.io/taktop-spine-db',
     ASSETS: {
         SPINE_LIST: '/spine.json',
-        BACKGROUND: '/assets/images/background.png'
+        BACKGROUND: '/src/images/background.png'
     }
 };
 
