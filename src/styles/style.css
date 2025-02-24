@@ -207,7 +207,7 @@ fieldset {
 footer {
     background-color: var(--surface-color);
     color: var(--text-secondary);
-    padding: 1.5rem;
+    padding: 0.75rem;
     text-align: center;
     margin-top: auto;
     font-size: 0.875rem;
@@ -220,8 +220,8 @@ footer {
 }
 
 footer .site-name {
-    font-size: 1.25rem;
-    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    margin-bottom: 0;
 }
 
 /* Responsive adjustments */
@@ -242,6 +242,11 @@ footer .site-name {
 
     #player-container {
         min-height: 250px;
+        margin-bottom: 60px;
+    }
+
+    footer .site-name {
+        font-size: 0.875rem;
     }
 }
 
@@ -259,6 +264,10 @@ footer .site-name {
 #player-container:fullscreen {
     width: 100vw !important;
     height: 100vh !important;
+}
+
+#player-container {
+    margin-bottom: 40px;
 }
 
 /* Hide elements when printing */
@@ -291,7 +300,9 @@ footer .site-name {
 }
 
 select {
-    padding: 8px 12px;
+    padding: 12px 16px;
+    height: 48px;
+    line-height: 24px;
     border-radius: 4px;
     border: 1px solid #ccc;
     color: white;
