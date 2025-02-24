@@ -143,7 +143,10 @@ async function loadSelectedFiles() {
 
     // Function to read file as data URL
     const readFileAsDataURL = async (url) => {
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            mode: 'cors',
+            credentials: 'same-origin'
+        });
         const blob = await response.blob();
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
