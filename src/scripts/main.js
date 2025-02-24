@@ -133,9 +133,9 @@ async function loadSelectedFiles() {
     destroyPlayer();
 
     // Set file path
-    const skelFile = `/taktop-spine-db/skel/${selectedAnimation}.skel`;
-    const atlasFile = `/taktop-spine-db/atlas/${selectedAnimation}.atlas`;
-    const pngFile = `/taktop-spine-db/png/${selectedAnimation}.png`;
+    const skelFile = `/taktop-spine-db/spines/${selectedAnimation}.skel`;
+    const atlasFile = `/taktop-spine-db/spines/${selectedAnimation}.atlas`;
+    const pngFile = `/taktop-spine-db/spines/${selectedAnimation}.png`;
 
     // Function to read file as data URL
     const readFileAsDataURL = (url) => {
