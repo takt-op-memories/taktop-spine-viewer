@@ -145,7 +145,7 @@ async function loadSelectedFiles() {
     const readFileAsDataURL = async (url) => {
         const response = await fetch(url, {
             mode: 'cors',
-            credentials: 'same-origin'
+            credentials: 'omit'
         });
         const blob = await response.blob();
         return new Promise((resolve, reject) => {
