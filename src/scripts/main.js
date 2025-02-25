@@ -47,8 +47,85 @@ const loadHeight = () => {
     }
 }
 
+const Lang = {
+    current: 'en',
+    data: null,
+
+    async init() {
+        try {
+            const response = await fetch('./src/i18n.json');
+            this.data = await response.json();
+
+            const savedLang = localStorage.getItem('preferred_language');
+            if (savedLang) {
+                this.current = savedLang;
+            }
+
+            const warningsContainers = document.querySelectorAll('.warnings-container');
+            warningsContainers.forEach(container => {
+                container.insertAdjacentHTML('beforebegin', `
+                <div class="lang-switch">
+                    <button onclick="Lang.switch('ja')" class="lang-btn">日本語</button>
+                    <button onclick="Lang.switch('en')" class="lang-btn">English</button>
+                </div>
+            `);
+
+                container.innerHTML = generateWarnings();
+            });
+
+            this.apply();
+
+        } catch (error) {
+            console.error('Failed to initialize language:', error);
+        }
+    },
+
+    switch(lang) {
+        this.current = lang;
+        localStorage.setItem('preferred_language', lang);
+        this.apply();
+
+        document.querySelectorAll(".warnings-container").forEach(container => {
+            container.innerHTML = generateWarnings();
+        });
+
+        document.getElementById('animationSelect').innerHTML = '';
+        loadAnimationList();
+
+        const statusChecker = new AuthStatusChecker();
+        statusChecker.checkStatus();
+    },
+
+    apply() {
+        if (!this.data) return;
+
+        const strings = this.data[this.current];
+        if (!strings) return;
+
+        document.title = strings.title;
+        document.querySelector('.site-name').textContent = strings.title;
+
+        document.querySelector('#animationSelect').previousElementSibling.textContent = strings.selectAnimation;
+        document.querySelector('button[onclick="loadSelectedFiles()"]').textContent = strings.loadAnimation;
+
+        document.querySelector('.warn div').textContent = strings.warning;
+
+        document.querySelector('#auth-container h2').textContent = strings.auth.title;
+        document.querySelector('#password').placeholder = strings.auth.placeholder;
+        document.querySelector('#auth-error').textContent = strings.auth.error;
+        document.querySelector('#auth-form button').textContent = strings.auth.submit;
+
+        document.querySelector('footer div').textContent = strings.footer.disclaimer;
+    }
+};
+
 window.addEventListener('load', async () => {
+    await Lang.init();
     loadAnimationList();
+
+    const statusChecker = new AuthStatusChecker();
+    statusChecker.checkStatus();
+    setInterval(() => statusChecker.checkStatus(), 60000);
 
     const savedPassword = sessionStorage.getItem(STORAGE_KEY.PASSWORD);
     if (savedPassword) {
@@ -69,6 +146,8 @@ window.addEventListener('resize', () => {
 });
 
 function generateWarnings() {
+    if (!Lang?.data?.[Lang.current]) return '';
+    const strings = Lang.data[Lang.current];
     return `
         <div class="warn">
             <svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="18" height="18"
@@ -78,15 +157,11 @@ function generateWarnings() {
                 </path>
             </svg>
             <div style="text-align: center;">
-                Displayed content may include unpublished content and spoilers
+                ${strings.warning}
             </div>
         </div>
     `;
 }
-
-document.querySelectorAll(".warnings-container").forEach(container => {
-    container.innerHTML = generateWarnings();
-});
 
 // List and display Spine animation files from /spine-files
 async function loadAnimationList() {
@@ -98,7 +173,14 @@ async function loadAnimationList() {
         }
         const files = await response.json();
 
+        const strings = Lang.data[Lang.current];
         const selectElement = document.getElementById('animationSelect');
+
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = strings.selectDefault;
+        selectElement.appendChild(defaultOption);
+
         files.forEach(file => {
             const option = document.createElement('option');
             option.value = file.fileName;
@@ -109,7 +191,7 @@ async function loadAnimationList() {
         if (files.length === 0) {
             const option = document.createElement('option');
             option.value = '';
-            option.textContent = 'Animation not available';
+            option.textContent = strings.noAnimation;
             selectElement.appendChild(option);
         }
     } catch (error) {
@@ -119,7 +201,7 @@ async function loadAnimationList() {
         const selectElement = document.getElementById('animationSelect');
         const option = document.createElement('option');
         option.value = '';
-        option.textContent = 'Failed to load list';
+        option.textContent = strings.loadError;
         selectElement.appendChild(option);
     }
 }
@@ -336,6 +418,11 @@ class AuthStatusChecker {
 
     async checkStatus() {
         try {
+            if (!Lang.data) {
+                console.warn('Language data not initialized yet');
+                return;
+            }
+
             const response = await fetch(this.statusEndpoint);
             if (!response.ok) {
                 throw new Error('Status acquisition error');
@@ -345,11 +432,15 @@ class AuthStatusChecker {
             this.updateStatusDisplay(data);
         } catch (error) {
             console.error('status check error:', error);
-            this.showError();
+            if (Lang.data) {
+                this.showError();
+            }
         }
     }
 
     updateStatusDisplay(data) {
+        if (!Lang?.data?.[Lang.current]) return;
+        const strings = Lang.data[Lang.current].status;
         const now = new Date();
         const nextChange = new Date(data.nextChange);
         const timeUntilChange = nextChange - now;
@@ -357,7 +448,7 @@ class AuthStatusChecker {
         if (timeUntilChange <= 0) {
             this.statusElement.innerHTML = `
                 <div class="status-info">
-                    <p>Now Updating Password...</p>
+                    <p>${strings.updating}</p>
                 </div>
             `;
             return;
@@ -368,22 +459,19 @@ class AuthStatusChecker {
 
         this.statusElement.innerHTML = `
             <div class="status-info">
-                <p>Until next password update：</p>
+                <p>${strings.until}</p>
                 <p class="time-remaining">${hoursRemaining}h${minutesRemaining}m</p>
             </div>
         `;
     }
 
     showError() {
+        if (!Lang?.data?.[Lang.current]) return;
+        const strings = Lang.data[Lang.current].status;
         this.statusElement.innerHTML = `
             <div class="status-error">
-                <p>Failed to retrieve update time</p>
+                <p>${strings.error}</p>
             </div>
         `;
     }
 }
-
-const statusChecker = new AuthStatusChecker();
-statusChecker.checkStatus();
-// 1分ごとに更新
-setInterval(() => statusChecker.checkStatus(), 60000);
