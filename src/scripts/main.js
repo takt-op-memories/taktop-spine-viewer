@@ -81,6 +81,10 @@ const Lang = {
     },
 
     switch(lang) {
+        if (this.current === lang) {
+            return;
+        }
+
         this.current = lang;
         localStorage.setItem('preferred_language', lang);
         this.apply();
