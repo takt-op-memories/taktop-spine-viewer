@@ -184,7 +184,7 @@ async function loadAnimationList() {
         files.forEach(file => {
             const option = document.createElement('option');
             option.value = file.fileName;
-            option.textContent = file.listName;
+            option.textContent = Lang.current === 'en' ? file.fileName : file.listName;
             selectElement.appendChild(option);
         });
 
