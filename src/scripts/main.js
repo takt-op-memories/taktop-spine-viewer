@@ -225,7 +225,8 @@ async function loadSelectedFiles() {
 
     const selectedAnimation = document.getElementById('animationSelect').value;
     if (!selectedAnimation) {
-        alert('Select the animation you wish to view');
+        const strings = Lang.data[Lang.current];
+        alert(strings.alerts.selectAnimation);
         return;
     }
 

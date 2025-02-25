@@ -20,7 +20,10 @@
         },
         "selectDefault": "アニメーションを選択してください",
         "noAnimation": "アニメーションがありません",
-        "loadError": "リストの読み込みに失敗しました"
+        "loadError": "リストの読み込みに失敗しました",
+        "alerts": {
+            "selectAnimation": "表示するアニメーションを選択してください"
+        }
     },
     "en": {
         "title": "takt op. Memories | Spine Viewer",
@@ -43,6 +46,9 @@
         },
         "selectDefault": "Select an animation",
         "noAnimation": "Animation not available",
-        "loadError": "Failed to load list"
+        "loadError": "Failed to load list",
+        "alerts": {
+            "selectAnimation": "Select the animation you wish to view"
+        }
     }
 }
