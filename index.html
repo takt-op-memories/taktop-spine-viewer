@@ -21,7 +21,6 @@
     <link rel="stylesheet" href="./src/styles/style.css">
     <link rel="stylesheet" href="./src/styles/spine-player.css">
     <script src="./src/scripts/lib/spine-player.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 
 <body>
@@ -67,9 +66,6 @@
                 </select>
             </fieldset>
             <button onclick="loadSelectedFiles()" aria-label="Load Animation">Load Animation</button>
-            <button onclick="downloadSelectedFiles()" aria-label="Download Animation">Download Animation</button>
-            <button onclick="exportPngSequence()" aria-label="Export PNG Sequence">Export PNG Sequence</button>
-            <span id="exportStatus" style="margin-left: 10px;"></span>
         </div>
         <div id="player-container" style="width: 100%; height: 300px;"></div>
     </div>
