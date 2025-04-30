@@ -283,6 +283,8 @@ async function loadSelectedFiles() {
             backgroundImage: {
                 url: CONFIG.ASSETS.BACKGROUND,
             },
+            // ★★★ ここに preserveDrawingBuffer を追加 ★★★
+            preserveDrawingBuffer: true,
             success: (spinePlayer) => {
                 player = spinePlayer;
                 console.log('spinePlayer: ', spinePlayer);
@@ -362,13 +364,12 @@ async function exportPngSequence() {
         alert("現在エクスポート処理中です。");
         return;
     }
-    // player と主要なプロパティが存在するか確認
-    if (!player || !player.animationState || !player.skeleton || !player.canvas) {
-        alert("アニメーションがロードされていないか、プレイヤーの準備ができていません。");
-        console.error("Export aborted: Player or essential properties missing.", { player });
+    // player と、コンテキストを含む主要なプロパティが存在するか確認
+    if (!player || !player.animationState || !player.skeleton || !player.canvas || !player.context || !player.context.gl) {
+        alert("プレイヤー、WebGLコンテキスト、またはアニメーションの準備ができていません。");
+        console.error("Export aborted: Player, context, GL, or essential properties missing.", { player });
         return;
     }
-    // Canvas が DOM に存在するか確認 (念のため)
     if (!document.body.contains(player.canvas)) {
         alert("プレイヤーの Canvas が見つかりません。");
         console.error("Export aborted: Player canvas not found in DOM.");
@@ -410,7 +411,19 @@ async function exportPngSequence() {
 
     const zip = new JSZip();
     const canvas = player.canvas;
-    let gl = null; // gl 変数を初期化
+    // ★★★ SpinePlayer が持つ WebGL コンテキストを直接利用 ★★★
+    const gl = player.context.gl;
+
+    // コンテキストが有効か念のため確認
+    if (!gl || gl.isContextLost()) {
+        console.error("WebGL context from player is invalid or lost.");
+        alert("プレイヤーから有効な WebGL コンテキストを取得できませんでした。");
+        statusElement.textContent = "エクスポート失敗 (WebGL)";
+        isExporting = false;
+        return;
+    }
+    console.log("Using WebGL context from player.context.gl", gl);
+
 
     // SpinePlayer の自動レンダリングを一時的に無効にする試み (コメントアウトのまま)
     // player.config.renderPlayerOnTrackEntry = false;
@@ -435,33 +448,13 @@ async function exportPngSequence() {
         return;
     }
 
-    // ★★★ 最初のレンダリング後に WebGL コンテキストを取得 ★★★
-    try {
-        gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
-        if (!gl) {
-            // ここで null になる場合、getContext 自体が失敗している
-            throw new Error("Failed to get WebGL context after initial render.");
-        }
-        console.log("WebGL context retrieved successfully.", gl);
-    } catch (contextError) {
-        console.error("WebGL context could not be retrieved:", contextError);
-        alert("WebGL コンテキストの取得に失敗しました。ブラウザが WebGL をサポートしているか、または有効になっているか確認してください。");
-        statusElement.textContent = "エクスポート失敗 (WebGL)";
-        isExporting = false;
-        return; // コンテキストがなければ続行不可
-    }
-
-    // preserveDrawingBuffer: true を指定することで、描画バッファがクリアされずに残り、
-    // toBlob でキャプチャしやすくなる可能性がありますが、パフォーマンスに影響する場合もあります。
-
     statusElement.textContent = `エクスポート中: 0 / ${totalFrames}`;
 
     // フレームごとにキャプチャする非同期関数
     async function captureFrame() {
-        // ... (以降の captureFrame 関数の内容は前回の修正案と同じ) ...
         // エラー発生時または全フレーム完了時
         if (errorOccurred || currentFrame >= totalFrames) {
-            // ... (Zip生成と後処理) ...
+            // ... (Zip生成と後処理 - 前回のコードと同じ) ...
             if (!errorOccurred) {
                 statusElement.textContent = "Zip ファイル生成中...";
                 try {
@@ -516,6 +509,13 @@ async function exportPngSequence() {
                     captureFrame();
                     return;
                 }
+
+                // ★★★ preserveDrawingBuffer: true が必要になる可能性 ★★★
+                // SpinePlayer の初期化時に preserveDrawingBuffer: true が設定されていない場合、
+                // render() 後にバッファがクリアされ、toBlob で黒画面になる可能性があります。
+                // もし黒画面になる場合は、SpinePlayer の初期化オプションで preserveDrawingBuffer: true を
+                // 設定する必要があります。（loadSelectedFiles 関数内の new spine.SpinePlayer(...) の箇所）
+                // 例: new spine.SpinePlayer("player-container", { ..., preserveDrawingBuffer: true });
 
                 canvas.toBlob(async (blob) => {
                     if (blob && !errorOccurred) {
