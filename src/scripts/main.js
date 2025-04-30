@@ -211,6 +211,7 @@ async function loadAnimationList() {
 }
 
 let player; // Instance of SpinePlayer
+let isExportingGif = false; // GIFエクスポート処理中フラグ (追加)
 
 // Load selected animation file
 async function loadSelectedFiles() {
@@ -478,5 +479,123 @@ class AuthStatusChecker {
                 <p>${strings.error}</p>
             </div>
         `;
+    }
+}
+
+// --- GIF Export Function (ここから追加) ---
+async function exportAsGif() {
+    if (isExportingGif) {
+        alert("現在 GIF エクスポート処理中です。");
+        return;
+    }
+
+    const selectedAnimation = document.getElementById('animationSelect').value;
+    if (!selectedAnimation) {
+        const strings = Lang.data[Lang.current];
+        alert(strings.alerts.selectAnimation);
+        return;
+    }
+
+    // 認証パスワードを取得
+    const password = sessionStorage.getItem(STORAGE_KEY.PASSWORD);
+    if (!password) {
+        alert("認証情報が見つかりません。ページをリロードしてください。");
+        Auth.clearAndReload(); // 認証画面に戻す
+        return;
+    }
+
+    // サーバー側での処理が重い可能性があるため、確認メッセージを表示
+    const confirmExport = confirm(
+        `アニメーション "${selectedAnimation}" を GIF としてエクスポートしますか？\n` +
+        `サーバー側での処理に時間がかかる場合があります。`
+    );
+    if (!confirmExport) {
+        return;
+    }
+
+    isExportingGif = true;
+    const exportButton = document.getElementById('exportGifButton');
+    const statusElement = document.getElementById('exportGifStatus');
+    const originalButtonText = exportButton.textContent; // 元のボタンテキストを保存
+
+    exportButton.disabled = true;
+    exportButton.textContent = "処理中..."; // ボタンテキストを変更
+    statusElement.textContent = "サーバーにリクエスト中...";
+
+    try {
+        console.log(`Requesting GIF export for: ${selectedAnimation}`);
+        const response = await fetch(`${CONFIG.API_BASE}/export-spine-gif`, { // 新しいエンドポイントを指定
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include', // セッション情報等が必要な場合
+            body: JSON.stringify({
+                animationName: selectedAnimation,
+                password: password // パスワードを送信
+            })
+        });
+
+        if (response.ok) {
+            statusElement.textContent = "Zip ファイルをダウンロード中...";
+            const blob = await response.blob();
+
+            // Content-Disposition ヘッダーからファイル名を取得する試み
+            let downloadFilename = `${selectedAnimation}_export.zip`; // デフォルトファイル名
+            const disposition = response.headers.get('Content-Disposition');
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
+                    downloadFilename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            // ダウンロードリンクを作成してクリック
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = downloadFilename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url); // メモリ解放
+            a.remove();
+            statusElement.textContent = "エクスポート完了";
+            console.log("GIF export successful, download started.");
+            // 完了後、一定時間後にステータス表示をクリア
+            setTimeout(() => { statusElement.textContent = ""; }, 5000);
+
+        } else {
+            // エラーレスポンスを処理
+            let errorMessage = `GIF エクスポートに失敗しました (HTTP ${response.status})`;
+            try {
+                const errorData = await response.json(); // エラー詳細がJSONで返される場合
+                errorMessage += `: ${errorData.message || 'サーバーエラー'}`;
+            } catch (e) {
+                // JSON パース失敗時
+                errorMessage += `: ${response.statusText}`;
+            }
+            console.error("GIF export failed:", errorMessage);
+            statusElement.textContent = `エラー: ${errorMessage}`;
+            alert(errorMessage); // ユーザーにエラーを通知
+            // エラー時も一定時間後にステータス表示をクリア
+            setTimeout(() => { statusElement.textContent = ""; }, 10000);
+            if (response.status === 401) { // 認証エラーの場合
+                Auth.clearAndReload(); // 再認証を促す
+            }
+        }
+
+    } catch (error) {
+        console.error("Error during GIF export request:", error);
+        statusElement.textContent = "通信エラーが発生しました。";
+        alert("GIF エクスポート中に通信エラーが発生しました。");
+        // エラー時も一定時間後にステータス表示をクリア
+        setTimeout(() => { statusElement.textContent = ""; }, 10000);
+    } finally {
+        // 処理完了後 (成功/失敗問わず) にボタンの状態を元に戻す
+        isExportingGif = false;
+        exportButton.disabled = false;
+        exportButton.textContent = originalButtonText; // ボタンテキストを元に戻す
     }
 }
