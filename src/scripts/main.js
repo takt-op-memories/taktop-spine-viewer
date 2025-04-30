@@ -362,14 +362,23 @@ async function exportPngSequence() {
         alert("現在エクスポート処理中です。");
         return;
     }
+    // player と主要なプロパティが存在するか確認
     if (!player || !player.animationState || !player.skeleton || !player.canvas) {
         alert("アニメーションがロードされていないか、プレイヤーの準備ができていません。");
+        console.error("Export aborted: Player or essential properties missing.", { player });
+        return;
+    }
+    // Canvas が DOM に存在するか確認 (念のため)
+    if (!document.body.contains(player.canvas)) {
+        alert("プレイヤーの Canvas が見つかりません。");
+        console.error("Export aborted: Player canvas not found in DOM.");
         return;
     }
 
     const currentTrackEntry = player.animationState.getCurrent(0);
     if (!currentTrackEntry || !currentTrackEntry.animation) {
         alert("再生中のアニメーションが見つかりません。アニメーションを再生してから実行してください。");
+        console.error("Export aborted: No active animation track found.");
         return;
     }
     const animation = currentTrackEntry.animation;
@@ -380,13 +389,14 @@ async function exportPngSequence() {
 
     if (totalFrames <= 0 || !isFinite(duration)) {
         alert("有効なアニメーションが見つからないか、長さが0または無効です。");
+        console.error("Export aborted: Invalid animation duration or frame count.", { duration, totalFrames });
         return;
     }
 
     const confirmExport = confirm(
         `アニメーション "${animationName}" を ${totalFrames} フレーム (約 ${duration.toFixed(2)}秒, ${frameRate}fps) の PNG シーケンスとしてエクスポートしますか？\n` +
         `フレーム数が多い場合、ブラウザが非常に重くなるか、応答しなくなる可能性があります。\n` +
-        `【注意】この機能は実験的なものであり、失敗する、または黒い画像が出力される場合があります。` // 注意文を追加
+        `【注意】この機能は実験的なものであり、失敗する、または黒い画像が出力される場合があります。`
     );
 
     if (!confirmExport) {
@@ -400,16 +410,7 @@ async function exportPngSequence() {
 
     const zip = new JSZip();
     const canvas = player.canvas;
-    // WebGLコンテキストを取得 (エラーチェック用)
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-
-    if (!gl) {
-        console.error("WebGL context could not be retrieved.");
-        alert("WebGL コンテキストの取得に失敗しました。エクスポートできません。");
-        statusElement.textContent = "エクスポート失敗";
-        isExporting = false;
-        return;
-    }
+    let gl = null; // gl 変数を初期化
 
     // SpinePlayer の自動レンダリングを一時的に無効にする試み (コメントアウトのまま)
     // player.config.renderPlayerOnTrackEntry = false;
@@ -417,14 +418,14 @@ async function exportPngSequence() {
 
     let currentFrame = 0;
     const timeStep = 1 / frameRate;
-    let errorOccurred = false; // エラー発生フラグ
+    let errorOccurred = false;
 
     // アニメーションの開始位置に設定し、最初のフレームを描画
-    player.animationState.setAnimation(0, animationName, false);
-    player.animationState.update(0);
-    player.animationState.apply(player.skeleton);
-    player.skeleton.updateWorldTransform();
     try {
+        player.animationState.setAnimation(0, animationName, false);
+        player.animationState.update(0);
+        player.animationState.apply(player.skeleton);
+        player.skeleton.updateWorldTransform();
         player.render(); // 最初のフレームを描画
     } catch (renderError) {
         console.error("Initial render failed:", renderError);
@@ -434,21 +435,37 @@ async function exportPngSequence() {
         return;
     }
 
+    // ★★★ 最初のレンダリング後に WebGL コンテキストを取得 ★★★
+    try {
+        gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+        if (!gl) {
+            // ここで null になる場合、getContext 自体が失敗している
+            throw new Error("Failed to get WebGL context after initial render.");
+        }
+        console.log("WebGL context retrieved successfully.", gl);
+    } catch (contextError) {
+        console.error("WebGL context could not be retrieved:", contextError);
+        alert("WebGL コンテキストの取得に失敗しました。ブラウザが WebGL をサポートしているか、または有効になっているか確認してください。");
+        statusElement.textContent = "エクスポート失敗 (WebGL)";
+        isExporting = false;
+        return; // コンテキストがなければ続行不可
+    }
+
+    // preserveDrawingBuffer: true を指定することで、描画バッファがクリアされずに残り、
+    // toBlob でキャプチャしやすくなる可能性がありますが、パフォーマンスに影響する場合もあります。
+
     statusElement.textContent = `エクスポート中: 0 / ${totalFrames}`;
 
     // フレームごとにキャプチャする非同期関数
     async function captureFrame() {
+        // ... (以降の captureFrame 関数の内容は前回の修正案と同じ) ...
         // エラー発生時または全フレーム完了時
         if (errorOccurred || currentFrame >= totalFrames) {
-            // エラーがなければZip生成
+            // ... (Zip生成と後処理) ...
             if (!errorOccurred) {
                 statusElement.textContent = "Zip ファイル生成中...";
                 try {
-                    const zipBlob = await zip.generateAsync({
-                        type: "blob",
-                        compression: "DEFLATE",
-                        compressionOptions: { level: 1 } // 低圧縮・高速
-                    });
+                    const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } });
                     const url = window.URL.createObjectURL(zipBlob);
                     const a = document.createElement('a');
                     a.style.display = 'none';
@@ -464,20 +481,16 @@ async function exportPngSequence() {
                     console.error("Zip file generation error:", zipError);
                     statusElement.textContent = "Zip生成エラー";
                     alert("Zip ファイルの生成中にエラーが発生しました。");
-                    errorOccurred = true; // Zip生成エラーもエラーとして扱う
+                    errorOccurred = true;
                 }
             }
 
-            // 共通の後処理
             if (errorOccurred) {
                 statusElement.textContent = "エラーにより中断";
                 alert("エクスポート中にエラーが発生したため、処理を中断しました。詳細はコンソールを確認してください。");
             }
             isExporting = false;
-            // player.config.renderPlayerOnTrackEntry = true; // (もし存在すれば)
-            // player.play(); // (もし存在すれば)
             if (player && player.animationState && animationName) {
-                // 元のアニメーションをループ再生で再設定 (エラー時も試みる)
                 try {
                     player.animationState.setAnimation(0, animationName, true);
                 } catch (resetError) {
@@ -485,51 +498,42 @@ async function exportPngSequence() {
                 }
             }
             console.log("Export process ended.");
-            return; // 処理終了
+            return;
         }
 
         // --- フレーム処理 ---
         try {
-            // 1. アニメーション状態を進める
             player.animationState.update(timeStep);
             player.animationState.apply(player.skeleton);
             player.skeleton.updateWorldTransform();
-
-            // 2. レンダリング実行
             player.render();
 
-            // 3. requestAnimationFrame を使って描画完了を待機し、キャプチャ
             requestAnimationFrame(() => {
-                // WebGLコンテキストが失われていないか確認
-                if (gl.isContextLost()) {
-                    console.error(`WebGL context lost at frame ${currentFrame}. Aborting.`);
+                // コンテキスト喪失チェック
+                if (!gl || gl.isContextLost()) { // gl が null でないかもチェック
+                    console.error(`WebGL context lost or unavailable at frame ${currentFrame}. Aborting.`);
                     errorOccurred = true;
-                    captureFrame(); // 終了処理へ
+                    captureFrame();
                     return;
                 }
 
                 canvas.toBlob(async (blob) => {
-                    if (blob && !errorOccurred) { // エラーが発生していなければ処理
+                    if (blob && !errorOccurred) {
                         const frameNumber = String(currentFrame).padStart(4, '0');
                         try {
                             await zip.file(`frame_${frameNumber}.png`, blob);
                             statusElement.textContent = `エクスポート中: ${currentFrame + 1} / ${totalFrames}`;
-
-                            currentFrame++; // 成功したら次のフレームへ
-                            // 次のフレーム処理をスケジュール
-                            setTimeout(captureFrame, 10); // 少し待機
-
+                            currentFrame++;
+                            setTimeout(captureFrame, 10);
                         } catch (zipAddError) {
                             console.error(`Error adding frame ${currentFrame} to zip:`, zipAddError);
                             errorOccurred = true;
-                            captureFrame(); // 終了処理へ
+                            captureFrame();
                         }
                     } else if (!errorOccurred) {
-                        console.warn(`Failed to create blob for frame ${currentFrame}. Skipping.`);
-                        // blob 生成失敗はスキップして次のフレームへ進むか、エラーとするか選択
-                        // ここではエラーとして中断する
+                        console.warn(`Failed to create blob for frame ${currentFrame}. Aborting.`);
                         errorOccurred = true;
-                        captureFrame(); // 終了処理へ
+                        captureFrame();
                     }
                 }, 'image/png');
             });
@@ -537,11 +541,12 @@ async function exportPngSequence() {
         } catch (frameError) {
             console.error(`Error processing frame ${currentFrame}:`, frameError);
             errorOccurred = true;
-            captureFrame(); // エラー発生時は即座に終了処理へ
+            captureFrame();
         }
     }
 
-    // 最初のフレームキャプチャを開始 (最初の描画後、少し待つ)
+
+    // 最初のフレームキャプチャを開始
     setTimeout(captureFrame, 100);
 }
 
