@@ -211,6 +211,7 @@ async function loadAnimationList() {
 }
 
 let player; // Instance of SpinePlayer
+let isExporting = false; // Export processing flag
 
 // Load selected animation file
 async function loadSelectedFiles() {
@@ -312,6 +313,189 @@ async function loadSelectedFiles() {
         console.error("Error loading files:", error);
         alert('Error loading files: ' + error.message);
     }
+}
+
+// Function to download selected animation files
+async function downloadSelectedFiles() {
+    const selectedAnimation = document.getElementById('animationSelect').value;
+    if (!selectedAnimation) {
+        const strings = Lang.data[Lang.current];
+        alert(strings.alerts.selectAnimation);
+        return;
+    }
+
+    const filesToDownload = [
+        { name: `${selectedAnimation}.skel`, path: `/taktop-spine-db/spines/${selectedAnimation}.skel` },
+        { name: `${selectedAnimation}.atlas`, path: `/taktop-spine-db/spines/${selectedAnimation}.atlas` },
+        { name: `${selectedAnimation}.png`, path: `/taktop-spine-db/spines/${selectedAnimation}.png` }
+    ];
+
+    try {
+        for (const file of filesToDownload) {
+            const response = await fetch(file.path);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ${file.name}`);
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            // 短い遅延を追加して、ブラウザがダウンロードダイアログを処理する時間を確保します
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        console.log("Raw files downloaded successfully.");
+    } catch (error) {
+        console.error("Error downloading raw files:", error);
+        alert('Error downloading raw files: ' + error.message);
+    }
+}
+
+// --- PNG Sequence Export --- (ここから追加・修正)
+async function exportPngSequence() {
+    if (isExporting) {
+        alert("現在エクスポート処理中です。");
+        return;
+    }
+    // player インスタンスと、アニメーション再生に必要な要素が存在するか確認
+    if (!player || !player.animationState || !player.skeleton || !player.canvas) {
+        alert("アニメーションがロードされていないか、プレイヤーの準備ができていません。");
+        return;
+    }
+
+    // 現在再生中のアニメーショントラックを取得 (トラック0を対象とする)
+    const currentTrackEntry = player.animationState.getCurrent(0);
+    if (!currentTrackEntry || !currentTrackEntry.animation) {
+        alert("再生中のアニメーションが見つかりません。アニメーションを再生してから実行してください。");
+        return;
+    }
+    const animation = currentTrackEntry.animation;
+    const animationName = animation.name;
+    const duration = animation.duration;
+    const frameRate = 30; // フレームレート (30fps)
+    const totalFrames = Math.ceil(duration * frameRate);
+
+    if (totalFrames <= 0 || !isFinite(duration)) { // duration が有効な数値かも確認
+        alert("有効なアニメーションが見つからないか、長さが0または無効です。");
+        return;
+    }
+
+    const confirmExport = confirm(
+        `アニメーション "${animationName}" を ${totalFrames} フレーム (約 ${duration.toFixed(2)}秒, ${frameRate}fps) の PNG シーケンスとしてエクスポートしますか？\n` +
+        `フレーム数が多い場合、ブラウザが非常に重くなるか、応答しなくなる可能性があります。`
+    );
+
+    if (!confirmExport) {
+        return;
+    }
+
+    isExporting = true;
+    const statusElement = document.getElementById('exportStatus');
+    statusElement.textContent = "エクスポート準備中...";
+    console.log(`Starting PNG sequence export: ${animationName}, Duration: ${duration}s, Frames: ${totalFrames}, FPS: ${frameRate}`);
+
+    const zip = new JSZip();
+    const canvas = player.canvas;
+
+    // SpinePlayer の自動レンダリングを一時的に無効にする試み
+    // 注意: spine-player.js の実装によっては、この方法が効かない、
+    // または予期せぬ動作をする可能性があります。
+    // player.config.renderPlayerOnTrackEntry = false; // (もし存在すれば)
+    // player.pause(); // pause メソッドがあれば利用する
+
+    let currentFrame = 0;
+    const timeStep = 1 / frameRate;
+
+    // アニメーションの開始位置に設定し、最初のフレームを描画
+    // setAnimation で trackTime を 0 にリセットし、ループを無効にする
+    player.animationState.setAnimation(0, animationName, false);
+    // 最初のフレームの状態を即座に適用
+    player.animationState.update(0); // デルタ時間0で更新
+    player.animationState.apply(player.skeleton);
+    player.skeleton.updateWorldTransform();
+    player.render(); // 最初のフレームを描画
+
+    statusElement.textContent = `エクスポート中: 0 / ${totalFrames}`;
+
+    // フレームごとにキャプチャする非同期関数
+    async function captureFrame() {
+        // currentFrame が totalFrames に達したら終了処理
+        if (currentFrame >= totalFrames) {
+            statusElement.textContent = "Zip ファイル生成中...";
+            try {
+                // Zip ファイルを生成 (圧縮レベルを下げて速度を優先)
+                const zipBlob = await zip.generateAsync({
+                    type: "blob",
+                    compression: "DEFLATE",
+                    compressionOptions: { level: 1 } // 低圧縮・高速
+                });
+                // ダウンロードリンクを作成してクリック
+                const url = window.URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `${animationName}_png_sequence.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url); // メモリ解放
+                a.remove();
+                statusElement.textContent = "エクスポート完了";
+                console.log("PNG sequence export finished successfully.");
+            } catch (error) {
+                console.error("Zip file generation error:", error);
+                statusElement.textContent = "エラーが発生しました。";
+                alert("Zip ファイルの生成中にエラーが発生しました。");
+            } finally {
+                isExporting = false;
+                // エクスポート前の状態に戻す (例: アニメーションをループ再生に戻す)
+                // player.config.renderPlayerOnTrackEntry = true; // (もし存在すれば)
+                // player.play(); // play メソッドがあれば利用する
+                if (player && player.animationState) {
+                    // 元のアニメーションをループ再生で再設定
+                    player.animationState.setAnimation(0, animationName, true);
+                }
+                console.log("Export process ended.");
+            }
+            return; // 処理終了
+        }
+
+        // Spine アニメーションを指定時間だけ進める
+        // update -> apply -> updateWorldTransform -> render の順で実行
+        player.animationState.update(timeStep); // 時間を進める
+        player.animationState.apply(player.skeleton); // スケルトンに適用
+        player.skeleton.updateWorldTransform(); // ワールド座標更新
+        player.render(); // Canvas に描画
+
+        // Canvas から PNG Blob を非同期で取得
+        canvas.toBlob(async (blob) => {
+            if (blob) {
+                // ファイル名を 0埋め 4桁にする (例: frame_0000.png)
+                const frameNumber = String(currentFrame).padStart(4, '0');
+                // Zip ファイルに PNG を追加
+                zip.file(`frame_${frameNumber}.png`, blob);
+                // ステータス表示を更新
+                statusElement.textContent = `エクスポート中: ${currentFrame + 1} / ${totalFrames}`;
+            } else {
+                console.warn(`フレーム ${currentFrame} の PNG 生成に失敗しました。スキップします。`);
+            }
+
+            currentFrame++; // 次のフレームへ
+
+            // 次のフレームのキャプチャをスケジュール
+            // setTimeout を使い、ブラウザが他の処理を行う余裕を与える
+            // 待機時間 (ミリ秒) は環境やアニメーションによって調整が必要な場合あり
+            setTimeout(captureFrame, 10); // 10ms 待機
+
+        }, 'image/png'); // PNG形式で出力
+    }
+
+    // 最初のフレームキャプチャを開始 (少し待ってから実行)
+    setTimeout(captureFrame, 100); // 100ms 待機
 }
 
 // Function to destroy a SpinePlayer instance
